@@ -55,7 +55,7 @@ function getMedia() {
 }
 
 async function action_init() {
-    const socket = io('http://localhost:9090', { transports: ['websocket'] })
+    const socket = io('http://172.16.3.100:9090', { transports: ['websocket'] })
 
     socket.on('connect', () => {
         console.log('\x1b[32mconnected\x1b')

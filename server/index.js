@@ -1,42 +1,57 @@
-const { Server } = require('socket.io')
+require('dotenv/config')
 
-const server = new Server({})
+const { Server } = require('socket.io')
+const express = require('express')
+const http = require('http')
+const https = require('https')
+const { readFileSync } = require('fs')
+
+const app = express()
+
+const httpServer = process.env.NODE_ENV === 'production' ?
+    https.createServer({
+        key: readFileSync(`/etc/letsencrypt/live/${process.env.SERVER_DOMAIN}/privkey.pem`),
+        cert: readFileSync(`/etc/letsencrypt/live/${process.env.SERVER_DOMAIN}/cert.pem`)
+    }, app) :
+    http.createServer(app);
+
+const socketIO = new Server(httpServer, {
+    cors: {
+        origin: '*',
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
+    },
+    path: '/'
+})
 
 const rooms = []
 const clients = []
 
-server.on('connection', socket => {
+socketIO.on('connection', socket => {
 
     socket.on('disconnect', () => {
         console.log('[disconnection] ' + socket.id);
         rooms.splice(rooms.findIndex((item) => item.id == socket.id), 1);
         clients.splice(clients.findIndex((id) => id == socket.id), 1)
-        server.emit('users', clients);
+        socketIO.emit('users', clients);
     });
 
     console.log('[connection] ' + socket.id);
 
     clients.push(socket.id)
-    server.emit('users', clients);
+    socketIO.emit('users', clients);
 
     socket.on('offer', (offer) => {
-        server.to(offer.to).emit('offer', offer)
+        socketIO.to(offer.to).emit('offer', offer)
     });
 
     socket.on('answer', (answer) => {
         console.log('[answer received]');
-        server.to(answer.to).emit('answer', answer)
+        socketIO.to(answer.to).emit('answer', answer)
     });
 
     socket.on('ice', ice => {
-        server.to(ice.to).emit('ice', ice)
+        socketIO.to(ice.to).emit('ice', ice)
     })
 })
 
-server.listen(9090, {
-    path: '/',
-    cors: {
-        methods: ['GET', 'POST'],
-        origin: '*'
-    }
-})
+httpServer.listen(process.env.SERVER_PORT || 9090, () => console.log('Server running'))
